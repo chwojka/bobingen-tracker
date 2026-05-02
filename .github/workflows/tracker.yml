@@ -2,8 +2,11 @@ name: Bobingen Flight Tracker
 
 on:
   schedule:
-    - cron: '*/10 * * * *'  # alle 10 Minuten
-  workflow_dispatch:          # manuell startbar
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   track:
@@ -17,7 +20,8 @@ jobs:
             -u "sebastian_chwojka@web.de:wydte6-bigtaV-zihhid" \
             "https://opensky-network.org/api/states/all?lamin=47.96&lomin=10.53&lamax=48.56&lomax=11.13" \
             -o response.json
-          
+          cat response.json
+
           python3 << 'EOF'
           import json, csv, os
           from datetime import datetime, timezone
@@ -29,18 +33,14 @@ jobs:
           flights = [s for s in states if not s[8]]
           now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')
 
-          row = [now, len(flights)]
-          for f in flights:
-              row.append((f[1] or '').strip())
-
-          file = 'data/flights.csv'
           os.makedirs('data', exist_ok=True)
+          file = 'data/flights.csv'
           exists = os.path.exists(file)
           with open(file, 'a', newline='') as f:
               w = csv.writer(f)
               if not exists:
                   w.writerow(['timestamp', 'count', 'callsigns'])
-              w.writerow([now, len(flights), '|'.join(row[2:])])
+              w.writerow([now, len(flights), '|'.join((s[1] or '').strip() for s in flights)])
 
           print(f"{now}: {len(flights)} Flugzeuge")
           EOF
