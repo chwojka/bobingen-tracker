@@ -1,0 +1,54 @@
+name: Bobingen Flight Tracker
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # alle 10 Minuten
+  workflow_dispatch:          # manuell startbar
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Flüge abfragen
+        run: |
+          curl -s \
+            -u "sebastian_chwojka@web.de:wydte6-bigtaV-zihhid" \
+            "https://opensky-network.org/api/states/all?lamin=47.96&lomin=10.53&lamax=48.56&lomax=11.13" \
+            -o response.json
+          
+          python3 << 'EOF'
+          import json, csv, os
+          from datetime import datetime, timezone
+
+          with open('response.json') as f:
+              data = json.load(f)
+
+          states = data.get('states') or []
+          flights = [s for s in states if not s[8]]
+          now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')
+
+          row = [now, len(flights)]
+          for f in flights:
+              row.append((f[1] or '').strip())
+
+          file = 'data/flights.csv'
+          os.makedirs('data', exist_ok=True)
+          exists = os.path.exists(file)
+          with open(file, 'a', newline='') as f:
+              w = csv.writer(f)
+              if not exists:
+                  w.writerow(['timestamp', 'count', 'callsigns'])
+              w.writerow([now, len(flights), '|'.join(row[2:])])
+
+          print(f"{now}: {len(flights)} Flugzeuge")
+          EOF
+
+      - name: Daten speichern
+        run: |
+          git config user.email "action@github.com"
+          git config user.name "Flight Tracker Bot"
+          git add data/flights.csv
+          git diff --staged --quiet || git commit -m "Update: $(date -u '+%H:%M UTC')"
+          git push
