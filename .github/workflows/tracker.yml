@@ -14,13 +14,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Flüge abfragen
+      - name: Flüge abfragen (mit Retry)
         run: |
-          curl -s \
-            -u "sebastian_chwojka@web.de:wydte6-bigtaV-zihhid" \
-            "https://opensky-network.org/api/states/all?lamin=47.96&lomin=10.53&lamax=48.56&lomax=11.13" \
-            -o response.json
-          cat response.json
+          SUCCESS=false
+
+          for attempt in 1 2 3; do
+            echo ">>> Versuch $attempt/3..."
+
+            HTTP_CODE=$(curl -s \
+              --max-time 20 \
+              -o response.json \
+              -w "%{http_code}" \
+              -u "${{ secrets.OPENSKY_USER }}:${{ secrets.OPENSKY_PASS }}" \
+              "https://opensky-network.org/api/states/all?lamin=47.96&lomin=10.53&lamax=48.56&lomax=11.13")
+
+            echo "HTTP Status: $HTTP_CODE"
+
+            if [ "$HTTP_CODE" = "200" ] && python3 -c "import json; json.load(open('response.json'))" 2>/dev/null; then
+              echo "Gültige Antwort erhalten."
+              SUCCESS=true
+              break
+            fi
+
+            echo "Fehlgeschlagen (HTTP $HTTP_CODE oder kein valides JSON)."
+            if [ $attempt -lt 3 ]; then
+              echo "Warte 15 Sekunden..."
+              sleep 15
+            fi
+          done
+
+          if [ "$SUCCESS" = "false" ]; then
+            echo "Alle 3 Versuche fehlgeschlagen – kein Datenpunkt gespeichert."
+            exit 0
+          fi
 
           python3 << 'EOF'
           import json, csv, os
