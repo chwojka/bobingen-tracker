@@ -298,7 +298,6 @@ function renderHistory(rows) {
   document.getElementById('hStatDays').textContent = days.size;
   document.getElementById('hStatSnapshots').textContent = rows.length + ' Snapshots total';
   const lastTs = rows[rows.length - 1].timestamp;
-  document.getElementById('histLastUpdate').textContent = 'Letzter Snapshot: ' + lastTs + ' UTC';
   document.getElementById('hStatLastSnap').textContent = lastTs;
 
   renderTimeline(filterRows(rows, activeFilter));
