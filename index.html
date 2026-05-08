@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flugtracker Bobingen</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sky: #0a0f1e;
+    --mid: #0d1a35;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --green: #00ff88;
+    --text: #e8f4f8;
+    --muted: #4a6080;
+    --border: rgba(0,212,255,0.2);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--sky);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 80% 10%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 50% 60%, rgba(255,255,255,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 10% 80%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 70% 85%, rgba(255,255,255,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 35% 15%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 90% 50%, rgba(255,255,255,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 5% 45%, rgba(255,255,255,0.3) 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .container { max-width: 900px; margin: 0 auto; padding: 24px 20px; position: relative; z-index: 1; }
+
+  /* ── Header ── */
+  header { margin-bottom: 28px; }
+  .header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .title-group h1 { font-family: 'Syne', sans-serif; font-weight: 800; font-size: clamp(1.6rem, 5vw, 2.4rem); color: var(--accent); letter-spacing: -0.02em; line-height: 1.1; }
+  .title-group p { color: var(--muted); font-size: 0.72rem; margin-top: 6px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .data-badge { display: flex; align-items: center; gap: 8px; background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.3); border-radius: 4px; padding: 8px 14px; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); white-space: nowrap; }
+  .data-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  /* ── Stats ── */
+  .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .stat-card { background: var(--mid); border: 1px solid var(--border); border-radius: 6px; padding: 16px; position: relative; overflow: hidden; }
+  .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--accent), transparent); }
+  .stat-card.green-top::before { background: linear-gradient(90deg, var(--green), transparent); }
+  .stat-card.orange-top::before { background: linear-gradient(90deg, var(--accent2), transparent); }
+  .stat-label { font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .stat-value { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 2rem; color: var(--accent); line-height: 1; }
+  .stat-value.green { color: var(--green); }
+  .stat-value.orange { color: var(--accent2); }
+  .stat-sub { font-size: 0.58rem; color: var(--muted); margin-top: 4px; letter-spacing: 0.05em; }
+
+  /* ── Bar charts ── */
+  .chart-wrap { background: var(--mid); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 24px; }
+  .chart-title { font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+  .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+  .bar-row { display: flex; align-items: center; gap: 10px; font-size: 0.65rem; }
+  .bar-label { width: 90px; text-align: right; color: var(--muted); flex-shrink: 0; letter-spacing: 0.05em; }
+  .bar-track { flex: 1; height: 20px; background: rgba(255,255,255,0.04); border-radius: 2px; overflow: hidden; }
+  .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #0088aa); border-radius: 2px; transition: width 0.5s ease; display: flex; align-items: center; padding-left: 8px; font-size: 0.6rem; color: var(--sky); font-weight: 700; min-width: 2px; }
+  .bar-fill.green { background: linear-gradient(90deg, var(--green), #008844); }
+
+  /* ── Hourly heatmap ── */
+  .hour-grid { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; margin-top: 8px; }
+  .hour-cell { aspect-ratio: 1; border-radius: 2px; background: rgba(255,255,255,0.04); position: relative; cursor: default; transition: transform 0.1s; }
+  .hour-cell:hover { transform: scale(1.15); }
+  .hour-cell .hour-tip { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: var(--mid); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-size: 0.55rem; white-space: nowrap; display: none; z-index: 10; color: var(--text); letter-spacing: 0.05em; }
+  .hour-cell:hover .hour-tip { display: block; }
+  .hour-labels { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; margin-top: 4px; }
+  .hour-lbl { font-size: 0.45rem; color: var(--muted); text-align: center; }
+
+  /* ── Timeline canvas ── */
+  #timelineCanvas { width: 100%; height: 120px; display: block; border-radius: 4px; }
+
+  /* ── Callsign cloud ── */
+  .callsign-cloud { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .callsign-tag { background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.2); border-radius: 3px; padding: 3px 8px; font-size: 0.62rem; color: var(--accent); letter-spacing: 0.06em; }
+
+  .hist-loading { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.05em; padding: 20px 0; }
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeIn 0.3s ease forwards; }
+
+  footer { text-align: center; font-size: 0.6rem; color: var(--muted); letter-spacing: 0.08em; padding: 16px 0; border-top: 1px solid var(--border); margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ── Header ── -->
+  <header>
+    <div class="header-top">
+      <div class="title-group">
+        <h1>✈ Flugtracker Bobingen</h1>
+        <p>48.2632° N, 10.8302° E &nbsp;·&nbsp; Bayern, Deutschland</p>
+      </div>
+      <div class="data-badge">
+        <div class="data-dot"></div>
+        GitHub Actions · alle 10 Min
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Status ── -->
+  <div id="histStatus" class="hist-loading">
+    <span class="spinner"></span>Lade Verlaufsdaten von GitHub...
+  </div>
+
+  <div id="histStats" style="display:none" class="fade-in">
+
+    <!-- ── Stat Cards ── -->
+    <div class="stats-row">
+      <div class="stat-card green-top">
+        <div class="stat-label">Einzigartige Flüge</div>
+        <div class="stat-value green" id="hStatUnique">–</div>
+        <div class="stat-sub">Callsign + Tag</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Ø Flüge pro Snapshot</div>
+        <div class="stat-value" id="hStatAvg">–</div>
+        <div class="stat-sub">nur Snapshots mit &gt; 0</div>
+      </div>
+      <div class="stat-card orange-top">
+        <div class="stat-label">Maximum (einmalig)</div>
+        <div class="stat-value orange" id="hStatMax">–</div>
+        <div class="stat-sub" id="hStatMaxTime"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Tage beobachtet</div>
+        <div class="stat-value" id="hStatDays">–</div>
+        <div class="stat-sub" id="hStatSnapshots"></div>
+      </div>
+    </div>
+
+    <!-- ── Zeitverlauf ── -->
+    <div class="chart-wrap">
+      <div class="chart-title">
+        Zeitverlauf &nbsp;·&nbsp; Flugzeuge pro Snapshot
+        <span id="histLastUpdate" style="float:right; font-size:0.58rem; color:var(--muted); font-weight:normal; letter-spacing:0.04em;"></span>
+      </div>
+      <canvas id="timelineCanvas" width="860" height="120"></canvas>
+    </div>
+
+    <!-- ── Stunden-Heatmap ── -->
+    <div class="chart-wrap">
+      <div class="chart-title">Tagesverteilung &nbsp;·&nbsp; Ø Flugzeuge nach Uhrzeit (UTC)</div>
+      <div class="hour-grid" id="hourGrid"></div>
+      <div class="hour-labels" id="hourLabels"></div>
+    </div>
+
+    <!-- ── Tages-Balken ── -->
+    <div class="chart-wrap">
+      <div class="chart-title">Tagesverlauf &nbsp;·&nbsp; Max. Flugzeuge pro Tag</div>
+      <div class="bar-chart" id="dailyChart"></div>
+    </div>
+
+    <!-- ── Callsign Cloud ── -->
+    <div class="chart-wrap">
+      <div class="chart-title">Alle gesehenen Callsigns &nbsp;(<span id="callsignCount">0</span>)</div>
+      <div class="callsign-cloud" id="callsignCloud"></div>
+    </div>
+
+  </div>
+
+  <footer>
+    Datenquelle: OpenSky Network API via GitHub Actions (alle 10 Min) &nbsp;·&nbsp; Koordinaten Bobingen: 48.2632°N, 10.8302°E
+  </footer>
+</div>
+
+<script>
+const CSV_URL = 'https://raw.githubusercontent.com/chwojka/bobingen-tracker/main/data/flights.csv';
+
+// ─── CSV laden ────────────────────────────────────────────────
+async function loadHistory() {
+  try {
+    const res = await fetch(CSV_URL + '?t=' + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    renderHistory(parseCSV(await res.text()));
+  } catch(e) {
+    document.getElementById('histStatus').innerHTML =
+      `<span style="color:#ff6b6b;font-size:0.72rem">Fehler beim Laden: ${e.message}</span>`;
+  }
+}
+
+function parseCSV(text) {
+  return text.trim().split('\n').slice(1).map(line => {
+    const parts = line.split(',');
+    const timestamp = parts[0];
+    const count = parseInt(parts[1]) || 0;
+    const callsigns = parts[2] ? parts[2].split('|').map(s => s.trim()).filter(Boolean) : [];
+    const [datePart, timePart] = timestamp.split(' ');
+    const hour = timePart ? parseInt(timePart.split(':')[0]) : 0;
+    return { timestamp, datePart, hour, count, callsigns };
+  }).filter(r => r.datePart);
+}
+
+// ─── Render ───────────────────────────────────────────────────
+function renderHistory(rows) {
+  document.getElementById('histStatus').style.display = 'none';
+  document.getElementById('histStats').style.display = 'block';
+
+  // Unique Flüge: callsign + Tag
+  const uniqueFlights = new Set();
+  const uniqueCallsigns = new Set();
+  rows.forEach(r => r.callsigns.forEach(c => {
+    uniqueFlights.add(`${c}__${r.datePart}`);
+    uniqueCallsigns.add(c);
+  }));
+
+  // Avg (nur Snapshots > 0)
+  const nonZero = rows.filter(r => r.count > 0);
+  const avg = nonZero.length
+    ? (nonZero.reduce((s, r) => s + r.count, 0) / nonZero.length).toFixed(1)
+    : '–';
+
+  // Max
+  const maxRow = rows.reduce((a, b) => b.count > a.count ? b : a, rows[0]);
+
+  // Days
+  const days = new Set(rows.map(r => r.datePart));
+
+  // Stat cards
+  document.getElementById('hStatUnique').textContent = uniqueFlights.size;
+  document.getElementById('hStatAvg').textContent = avg;
+  document.getElementById('hStatMax').textContent = maxRow.count;
+  document.getElementById('hStatMaxTime').textContent = maxRow.timestamp;
+  document.getElementById('hStatDays').textContent = days.size;
+  document.getElementById('hStatSnapshots').textContent = rows.length + ' Snapshots total';
+  document.getElementById('histLastUpdate').textContent =
+    'Letzter Snapshot: ' + rows[rows.length - 1].timestamp + ' UTC';
+
+  renderTimeline(rows);
+  renderHourGrid(rows);
+  renderDailyChart(rows, days);
+  renderCallsignCloud(uniqueCallsigns);
+}
+
+// ─── Zeitverlauf ──────────────────────────────────────────────
+function renderTimeline(rows) {
+  const canvas = document.getElementById('timelineCanvas');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = (canvas.offsetWidth || 860) * dpr;
+  canvas.height = 120 * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = canvas.offsetWidth || 860, H = 120;
+  const pad = { top: 12, right: 12, bottom: 28, left: 28 };
+  const cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
+  const maxVal = Math.max(...rows.map(r => r.count), 1);
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid
+  [0.25, 0.5, 0.75, 1].forEach(f => {
+    const y = pad.top + cH * (1 - f);
+    ctx.strokeStyle = 'rgba(0,212,255,0.07)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cW, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(74,96,128,0.9)'; ctx.font = '9px Space Mono'; ctx.textAlign = 'right';
+    ctx.fillText(Math.round(maxVal * f), pad.left - 4, y + 3);
+  });
+
+  if (rows.length < 2) return;
+
+  // Area
+  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + cH);
+  grad.addColorStop(0, 'rgba(0,212,255,0.25)'); grad.addColorStop(1, 'rgba(0,212,255,0.02)');
+  ctx.beginPath();
+  rows.forEach((r, i) => {
+    const x = pad.left + (i / (rows.length - 1)) * cW;
+    const y = pad.top + cH * (1 - r.count / maxVal);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.lineTo(pad.left + cW, pad.top + cH); ctx.lineTo(pad.left, pad.top + cH);
+  ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  rows.forEach((r, i) => {
+    const x = pad.left + (i / (rows.length - 1)) * cW;
+    const y = pad.top + cH * (1 - r.count / maxVal);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = 'rgba(0,212,255,0.8)'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // Datums-Trennlinien
+  let lastDate = '';
+  rows.forEach((r, i) => {
+    if (r.datePart === lastDate) return;
+    lastDate = r.datePart;
+    const x = pad.left + (i / (rows.length - 1)) * cW;
+    ctx.strokeStyle = 'rgba(0,212,255,0.15)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + cH); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(74,96,128,0.9)'; ctx.font = '9px Space Mono'; ctx.textAlign = 'left';
+    ctx.fillText(r.datePart.slice(5), x + 2, pad.top + cH + 14);
+  });
+}
+
+// ─── Stunden-Heatmap ──────────────────────────────────────────
+function renderHourGrid(rows) {
+  const sums = new Array(24).fill(0), counts = new Array(24).fill(0);
+  rows.forEach(r => { sums[r.hour] += r.count; counts[r.hour]++; });
+  const avgs = sums.map((s, i) => counts[i] > 0 ? s / counts[i] : 0);
+  const maxAvg = Math.max(...avgs, 0.1);
+
+  const grid = document.getElementById('hourGrid');
+  const labels = document.getElementById('hourLabels');
+  grid.innerHTML = ''; labels.innerHTML = '';
+
+  avgs.forEach((avg, h) => {
+    const intensity = avg / maxAvg;
+    const cell = document.createElement('div');
+    cell.className = 'hour-cell';
+    cell.style.background = `rgba(0,${Math.round(80 + intensity*132)},${Math.round(100 + intensity*155)},${0.15 + intensity*0.75})`;
+    cell.innerHTML = `<div class="hour-tip">${String(h).padStart(2,'0')}:00 UTC<br>Ø ${avg.toFixed(1)} Flugzeuge</div>`;
+    grid.appendChild(cell);
+
+    const lbl = document.createElement('div');
+    lbl.className = 'hour-lbl';
+    lbl.textContent = h % 3 === 0 ? String(h).padStart(2, '0') : '';
+    labels.appendChild(lbl);
+  });
+}
+
+// ─── Tages-Balken ─────────────────────────────────────────────
+function renderDailyChart(rows, days) {
+  const dayMax = {};
+  rows.forEach(r => { dayMax[r.datePart] = Math.max(dayMax[r.datePart] || 0, r.count); });
+  const dayList = [...days].sort();
+  const maxVal = Math.max(...dayList.map(d => dayMax[d]), 1);
+
+  document.getElementById('dailyChart').innerHTML = dayList.map(d => {
+    const val = dayMax[d];
+    const pct = Math.round((val / maxVal) * 100);
+    return `<div class="bar-row">
+      <div class="bar-label">${d.slice(5)}</div>
+      <div class="bar-track"><div class="bar-fill green" style="width:${pct}%">${val > 0 ? 'Max ' + val : ''}</div></div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Callsign Cloud ───────────────────────────────────────────
+function renderCallsignCloud(callsigns) {
+  document.getElementById('callsignCount').textContent = callsigns.size;
+  document.getElementById('callsignCloud').innerHTML =
+    [...callsigns].sort().map(cs => `<span class="callsign-tag">${cs}</span>`).join('');
+}
+
+// ─── Init ─────────────────────────────────────────────────────
+loadHistory();
+</script>
+</body>
+</html>
