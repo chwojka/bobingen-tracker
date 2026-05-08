@@ -73,14 +73,9 @@
   .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #0088aa); border-radius: 2px; transition: width 0.5s ease; display: flex; align-items: center; padding-left: 8px; font-size: 0.6rem; color: var(--sky); font-weight: 700; min-width: 2px; }
   .bar-fill.green { background: linear-gradient(90deg, var(--green), #008844); }
 
-  /* ── Hourly heatmap ── */
-  .hour-grid { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; margin-top: 8px; }
-  .hour-cell { aspect-ratio: 1; border-radius: 2px; background: rgba(255,255,255,0.04); position: relative; cursor: default; transition: transform 0.1s; }
-  .hour-cell:hover { transform: scale(1.15); }
-  .hour-cell .hour-tip { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: var(--mid); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-size: 0.55rem; white-space: nowrap; display: none; z-index: 10; color: var(--text); letter-spacing: 0.05em; }
-  .hour-cell:hover .hour-tip { display: block; }
-  .hour-labels { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; margin-top: 4px; }
-  .hour-lbl { font-size: 0.45rem; color: var(--muted); text-align: center; }
+  /* ── Hourly bar chart ── */
+  #hourCanvas { width: 100%; height: 140px; display: block; cursor: crosshair; }
+  .hour-tooltip { position: fixed; background: var(--mid); border: 1px solid var(--border); border-radius: 4px; padding: 5px 10px; font-size: 0.62rem; color: var(--text); letter-spacing: 0.05em; pointer-events: none; display: none; z-index: 100; line-height: 1.5; }
 
   /* ── Timeline canvas ── */
   #timelineCanvas { width: 100%; height: 120px; display: block; border-radius: 4px; }
@@ -166,12 +161,15 @@
       <canvas id="timelineCanvas" width="860" height="120"></canvas>
     </div>
 
-    <!-- ── Stunden-Heatmap ── -->
+    <!-- ── Stunden-Balken ── -->
     <div class="chart-wrap">
-      <div class="chart-title">Tagesverteilung &nbsp;·&nbsp; Ø Flugzeuge nach Uhrzeit (UTC)</div>
-      <div class="hour-grid" id="hourGrid"></div>
-      <div class="hour-labels" id="hourLabels"></div>
+      <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center;">
+        <span>Tagesverteilung &nbsp;·&nbsp; Ø Flugzeuge pro Stunde</span>
+        <span style="font-size:0.58rem; color:var(--muted);">Hover für Details &nbsp;·&nbsp; Uhrzeit UTC</span>
+      </div>
+      <canvas id="hourCanvas" width="860" height="140"></canvas>
     </div>
+    <div class="hour-tooltip" id="hourTooltip"></div>
 
     <!-- ── Tages-Balken ── -->
     <div class="chart-wrap">
@@ -341,30 +339,106 @@ function renderTimeline(rows) {
   });
 }
 
-// ─── Stunden-Heatmap ──────────────────────────────────────────
+// ─── Stunden-Balkendiagramm ───────────────────────────────────
 function renderHourGrid(rows) {
   const sums = new Array(24).fill(0), counts = new Array(24).fill(0);
   rows.forEach(r => { sums[r.hour] += r.count; counts[r.hour]++; });
   const avgs = sums.map((s, i) => counts[i] > 0 ? s / counts[i] : 0);
   const maxAvg = Math.max(...avgs, 0.1);
+  const peakHour = avgs.indexOf(Math.max(...avgs));
 
-  const grid = document.getElementById('hourGrid');
-  const labels = document.getElementById('hourLabels');
-  grid.innerHTML = ''; labels.innerHTML = '';
+  const canvas = document.getElementById('hourCanvas');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = (canvas.offsetWidth || 860) * dpr;
+  canvas.height = 140 * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
 
-  avgs.forEach((avg, h) => {
-    const intensity = avg / maxAvg;
-    const cell = document.createElement('div');
-    cell.className = 'hour-cell';
-    cell.style.background = `rgba(0,${Math.round(80 + intensity*132)},${Math.round(100 + intensity*155)},${0.15 + intensity*0.75})`;
-    cell.innerHTML = `<div class="hour-tip">${String(h).padStart(2,'0')}:00 UTC<br>Ø ${avg.toFixed(1)} Flugzeuge</div>`;
-    grid.appendChild(cell);
+  const W = canvas.offsetWidth || 860, H = 140;
+  const pad = { top: 10, right: 8, bottom: 28, left: 28 };
+  const cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
+  const barW = cW / 24;
 
-    const lbl = document.createElement('div');
-    lbl.className = 'hour-lbl';
-    lbl.textContent = h % 3 === 0 ? String(h).padStart(2, '0') : '';
-    labels.appendChild(lbl);
+  ctx.clearRect(0, 0, W, H);
+
+  // Y-Achse Gridlines
+  const ySteps = Math.ceil(maxAvg);
+  [0, 0.5, 1].forEach(f => {
+    const y = pad.top + cH * (1 - f);
+    ctx.strokeStyle = 'rgba(0,212,255,0.07)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cW, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(74,96,128,0.9)'; ctx.font = '9px Space Mono'; ctx.textAlign = 'right';
+    ctx.fillText((maxAvg * f).toFixed(1), pad.left - 4, y + 3);
   });
+
+  // Balken
+  avgs.forEach((avg, h) => {
+    const barH = (avg / maxAvg) * cH;
+    const x = pad.left + h * barW;
+    const y = pad.top + cH - barH;
+    const isPeak = h === peakHour;
+
+    // Balken-Gradient
+    const grad = ctx.createLinearGradient(0, y, 0, y + barH);
+    if (isPeak) {
+      grad.addColorStop(0, 'rgba(255,107,53,0.9)');
+      grad.addColorStop(1, 'rgba(255,107,53,0.3)');
+    } else {
+      grad.addColorStop(0, 'rgba(0,212,255,0.7)');
+      grad.addColorStop(1, 'rgba(0,212,255,0.15)');
+    }
+
+    ctx.fillStyle = grad;
+    const gap = 2;
+    ctx.beginPath();
+    ctx.roundRect(x + gap, y, barW - gap * 2, barH, [2, 2, 0, 0]);
+    ctx.fill();
+
+    // Peak-Label über dem Balken
+    if (isPeak && barH > 10) {
+      ctx.fillStyle = 'rgba(255,107,53,0.9)';
+      ctx.font = 'bold 9px Space Mono';
+      ctx.textAlign = 'center';
+      ctx.fillText('▲', x + barW / 2, y - 3);
+    }
+
+    // X-Achse Labels (alle 3 Stunden)
+    if (h % 3 === 0) {
+      ctx.fillStyle = 'rgba(74,96,128,0.9)';
+      ctx.font = '9px Space Mono';
+      ctx.textAlign = 'center';
+      ctx.fillText(String(h).padStart(2, '0') + 'h', x + barW / 2, H - 6);
+    }
+  });
+
+  // X-Achse Linie
+  ctx.strokeStyle = 'rgba(0,212,255,0.15)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pad.left, pad.top + cH);
+  ctx.lineTo(pad.left + cW, pad.top + cH);
+  ctx.stroke();
+
+  // Hover-Interaktion
+  const tooltip = document.getElementById('hourTooltip');
+  canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left);
+    const h = Math.floor((mx - pad.left) / barW);
+    if (h >= 0 && h < 24) {
+      const localH = (h + 2) % 24; // UTC+2 (MESZ)
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 12) + 'px';
+      tooltip.style.top = (e.clientY - 10) + 'px';
+      tooltip.innerHTML =
+        `<b>${String(h).padStart(2,'0')}:00 UTC</b> (${String(localH).padStart(2,'0')}:00 MESZ)<br>` +
+        `Ø ${avgs[h].toFixed(2)} Flugzeuge` +
+        (h === peakHour ? ' &nbsp;<span style="color:var(--accent2)">▲ Peak</span>' : '') +
+        `<br><span style="color:var(--muted)">${counts[h]} Messungen</span>`;
+    } else {
+      tooltip.style.display = 'none';
+    }
+  };
+  canvas.onmouseleave = () => { tooltip.style.display = 'none'; };
 }
 
 // ─── Tages-Balken ─────────────────────────────────────────────
