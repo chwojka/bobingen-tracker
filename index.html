@@ -149,6 +149,22 @@
       <div class="bar-chart" id="dailyChart"></div>
     </div>
 
+    <!-- ── Stunden-Balken ── -->
+    <div class="chart-wrap">
+      <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <span>Tagesverteilung &nbsp;·&nbsp; Flugzeuge pro Stunde</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="display:flex; gap:4px;">
+            <button class="filter-btn active" id="filterHourToday" onclick="setHourFilter('today')">Heute</button>
+            <button class="filter-btn" id="filterHourAll" onclick="setHourFilter('all')">Ø Alle Tage</button>
+          </div>
+          <span style="font-size:0.58rem; color:var(--muted);">Hover für Details &nbsp;·&nbsp; UTC</span>
+        </div>
+      </div>
+      <canvas id="hourCanvas" width="860" height="140"></canvas>
+    </div>
+    <div class="hour-tooltip" id="hourTooltip"></div>
+
     <!-- ── Callsign Cloud ── -->
     <div class="chart-wrap">
       <div class="chart-title">Alle gesehenen Callsigns &nbsp;(<span id="callsignCount">0</span>)</div>
@@ -161,7 +177,7 @@
       <div class="line"></div>
     </div>
 
-    <!-- ── Snapshot Stat ── -->
+    <!-- ── Snapshot Stats ── -->
     <div class="stats-row" style="margin-bottom:24px;">
       <div class="stat-card" style="max-width:220px;">
         <div class="stat-label">Ø Flugzeuge pro Snapshot</div>
@@ -186,22 +202,6 @@
       </div>
       <canvas id="timelineCanvas" width="860" height="120"></canvas>
     </div>
-
-    <!-- ── Stunden-Balken ── -->
-    <div class="chart-wrap">
-      <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-        <span>Tagesverteilung &nbsp;·&nbsp; Flugzeuge pro Stunde</span>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <div style="display:flex; gap:4px;">
-            <button class="filter-btn active" id="filterHourToday" onclick="setHourFilter('today')">Heute</button>
-            <button class="filter-btn" id="filterHourAll" onclick="setHourFilter('all')">Ø Alle Tage</button>
-          </div>
-          <span style="font-size:0.58rem; color:var(--muted);">Hover für Details &nbsp;·&nbsp; UTC</span>
-        </div>
-      </div>
-      <canvas id="hourCanvas" width="860" height="140"></canvas>
-    </div>
-    <div class="hour-tooltip" id="hourTooltip"></div>
 
   </div>
 
