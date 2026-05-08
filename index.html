@@ -89,6 +89,11 @@
   .callsign-cloud { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
   .callsign-tag { background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.2); border-radius: 3px; padding: 3px 8px; font-size: 0.62rem; color: var(--accent); letter-spacing: 0.06em; }
 
+  /* ── Filter Buttons ── */
+  .filter-btn { font-family: 'Space Mono', monospace; font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 10px; border-radius: 3px; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--muted); transition: all 0.15s; }
+  .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-btn.active { background: rgba(0,212,255,0.12); border-color: var(--accent); color: var(--accent); }
+
   .hist-loading { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.05em; padding: 20px 0; }
   .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -148,9 +153,15 @@
 
     <!-- ── Zeitverlauf ── -->
     <div class="chart-wrap">
-      <div class="chart-title">
-        Zeitverlauf &nbsp;·&nbsp; Flugzeuge pro Snapshot
-        <span id="histLastUpdate" style="float:right; font-size:0.58rem; color:var(--muted); font-weight:normal; letter-spacing:0.04em;"></span>
+      <div class="chart-title" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+        <span>Zeitverlauf &nbsp;·&nbsp; Flugzeuge pro Snapshot</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="display:flex; gap:4px;">
+            <button class="filter-btn active" id="filter24h" onclick="setFilter('24h')">24h</button>
+            <button class="filter-btn" id="filter7d" onclick="setFilter('7d')">7 Tage</button>
+          </div>
+          <span id="histLastUpdate" style="font-size:0.58rem; color:var(--muted); letter-spacing:0.04em;"></span>
+        </div>
       </div>
       <canvas id="timelineCanvas" width="860" height="120"></canvas>
     </div>
@@ -183,17 +194,37 @@
 
 <script>
 const CSV_URL = 'https://raw.githubusercontent.com/chwojka/bobingen-tracker/main/data/flights.csv';
+let allRows = [];
+let activeFilter = '24h';
 
 // ─── CSV laden ────────────────────────────────────────────────
 async function loadHistory() {
   try {
     const res = await fetch(CSV_URL + '?t=' + Date.now());
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    renderHistory(parseCSV(await res.text()));
+    allRows = parseCSV(await res.text());
+    renderHistory(allRows);
   } catch(e) {
     document.getElementById('histStatus').innerHTML =
       `<span style="color:#ff6b6b;font-size:0.72rem">Fehler beim Laden: ${e.message}</span>`;
   }
+}
+
+// ─── Filter ───────────────────────────────────────────────────
+function filterRows(rows, filter) {
+  if (!rows.length) return rows;
+  const lastTs = new Date(rows[rows.length - 1].timestamp.replace(' ', 'T') + 'Z');
+  const cutoff = new Date(lastTs);
+  if (filter === '24h') cutoff.setHours(cutoff.getHours() - 24);
+  else cutoff.setDate(cutoff.getDate() - 7);
+  return rows.filter(r => new Date(r.timestamp.replace(' ', 'T') + 'Z') >= cutoff);
+}
+
+function setFilter(filter) {
+  activeFilter = filter;
+  document.getElementById('filter24h').classList.toggle('active', filter === '24h');
+  document.getElementById('filter7d').classList.toggle('active', filter === '7d');
+  renderTimeline(filterRows(allRows, filter));
 }
 
 function parseCSV(text) {
@@ -243,7 +274,7 @@ function renderHistory(rows) {
   document.getElementById('histLastUpdate').textContent =
     'Letzter Snapshot: ' + rows[rows.length - 1].timestamp + ' UTC';
 
-  renderTimeline(rows);
+  renderTimeline(filterRows(rows, activeFilter));
   renderHourGrid(rows);
   renderDailyChart(rows, days);
   renderCallsignCloud(uniqueCallsigns);
