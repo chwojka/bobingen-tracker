@@ -1,9 +1,7 @@
 name: Bobingen Flight Tracker
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'
-  workflow_dispatch:
+  workflow_dispatch: # Nur noch manuell auslösbar – VPS übernimmt den Cron
 
 permissions:
   contents: write
