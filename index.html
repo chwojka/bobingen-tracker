@@ -163,9 +163,15 @@
 
     <!-- ── Stunden-Balken ── -->
     <div class="chart-wrap">
-      <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center;">
-        <span>Tagesverteilung &nbsp;·&nbsp; Ø Flugzeuge pro Stunde</span>
-        <span style="font-size:0.58rem; color:var(--muted);">Hover für Details &nbsp;·&nbsp; Uhrzeit UTC</span>
+      <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <span>Tagesverteilung &nbsp;·&nbsp; Flugzeuge pro Stunde</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="display:flex; gap:4px;">
+            <button class="filter-btn active" id="filterHourToday" onclick="setHourFilter('today')">Heute</button>
+            <button class="filter-btn" id="filterHourAll" onclick="setHourFilter('all')">Ø Alle Tage</button>
+          </div>
+          <span style="font-size:0.58rem; color:var(--muted);">Hover für Details &nbsp;·&nbsp; UTC</span>
+        </div>
       </div>
       <canvas id="hourCanvas" width="860" height="140"></canvas>
     </div>
@@ -194,6 +200,7 @@
 const CSV_URL = 'https://raw.githubusercontent.com/chwojka/bobingen-tracker/main/data/flights.csv';
 let allRows = [];
 let activeFilter = '24h';
+let activeHourFilter = 'today';
 
 // ─── CSV laden ────────────────────────────────────────────────
 async function loadHistory() {
@@ -223,6 +230,13 @@ function setFilter(filter) {
   document.getElementById('filter24h').classList.toggle('active', filter === '24h');
   document.getElementById('filter7d').classList.toggle('active', filter === '7d');
   renderTimeline(filterRows(allRows, filter));
+}
+
+function setHourFilter(filter) {
+  activeHourFilter = filter;
+  document.getElementById('filterHourToday').classList.toggle('active', filter === 'today');
+  document.getElementById('filterHourAll').classList.toggle('active', filter === 'all');
+  renderHourGrid(allRows, filter);
 }
 
 function parseCSV(text) {
@@ -273,7 +287,7 @@ function renderHistory(rows) {
     'Letzter Snapshot: ' + rows[rows.length - 1].timestamp + ' UTC';
 
   renderTimeline(filterRows(rows, activeFilter));
-  renderHourGrid(rows);
+  renderHourGrid(rows, activeHourFilter);
   renderDailyChart(rows, days);
   renderCallsignCloud(uniqueCallsigns);
 }
@@ -340,9 +354,20 @@ function renderTimeline(rows) {
 }
 
 // ─── Stunden-Balkendiagramm ───────────────────────────────────
-function renderHourGrid(rows) {
+function renderHourGrid(rows, filter = activeHourFilter) {
   const sums = new Array(24).fill(0), counts = new Array(24).fill(0);
-  rows.forEach(r => { sums[r.hour] += r.count; counts[r.hour]++; });
+
+  let filteredRows = rows;
+  let chartLabel = '';
+
+  if (filter === 'today') {
+    // Nur den neuesten Tag nehmen
+    const lastDate = rows[rows.length - 1]?.datePart;
+    filteredRows = rows.filter(r => r.datePart === lastDate);
+    chartLabel = lastDate || '';
+  }
+
+  filteredRows.forEach(r => { sums[r.hour] += r.count; counts[r.hour]++; });
   const avgs = sums.map((s, i) => counts[i] > 0 ? s / counts[i] : 0);
   const maxAvg = Math.max(...avgs, 0.1);
   const peakHour = avgs.indexOf(Math.max(...avgs));
@@ -429,11 +454,12 @@ function renderHourGrid(rows) {
       tooltip.style.display = 'block';
       tooltip.style.left = (e.clientX + 12) + 'px';
       tooltip.style.top = (e.clientY - 10) + 'px';
+      const valLabel = filter === 'today' ? avgs[h].toFixed(1) + ' Flugzeuge' : 'Ø ' + avgs[h].toFixed(2) + ' Flugzeuge';
       tooltip.innerHTML =
         `<b>${String(h).padStart(2,'0')}:00 UTC</b> (${String(localH).padStart(2,'0')}:00 MESZ)<br>` +
-        `Ø ${avgs[h].toFixed(2)} Flugzeuge` +
-        (h === peakHour ? ' &nbsp;<span style="color:var(--accent2)">▲ Peak</span>' : '') +
-        `<br><span style="color:var(--muted)">${counts[h]} Messungen</span>`;
+        valLabel +
+        (h === peakHour && avgs[h] > 0 ? ' &nbsp;<span style="color:var(--accent2)">▲ Peak</span>' : '') +
+        `<br><span style="color:var(--muted)">${counts[h]} Messung${counts[h] !== 1 ? 'en' : ''}</span>`;
     } else {
       tooltip.style.display = 'none';
     }
