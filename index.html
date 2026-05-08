@@ -122,20 +122,17 @@
 
   <div id="histStats" style="display:none" class="fade-in">
 
-    <!-- ── Stat Cards ── -->
+    <!-- ══ PRIMÄRE DATEN ══════════════════════════════════════ -->
+
+    <!-- ── Stat Cards (ohne Snapshot-Avg) ── -->
     <div class="stats-row">
       <div class="stat-card green-top">
         <div class="stat-label">Einzigartige Flüge</div>
         <div class="stat-value green" id="hStatUnique">–</div>
         <div class="stat-sub">Callsign + Tag</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Ø Flüge pro Snapshot</div>
-        <div class="stat-value" id="hStatAvg">–</div>
-        <div class="stat-sub">nur Snapshots mit &gt; 0</div>
-      </div>
       <div class="stat-card orange-top">
-        <div class="stat-label">Maximum (einmalig)</div>
+        <div class="stat-label">Maximum gleichzeitig</div>
         <div class="stat-value orange" id="hStatMax">–</div>
         <div class="stat-sub" id="hStatMaxTime"></div>
       </div>
@@ -146,16 +143,45 @@
       </div>
     </div>
 
+    <!-- ── Tages-Balken ── -->
+    <div class="chart-wrap">
+      <div class="chart-title">Tagesverlauf &nbsp;·&nbsp; Einzigartige Flüge pro Tag</div>
+      <div class="bar-chart" id="dailyChart"></div>
+    </div>
+
+    <!-- ── Callsign Cloud ── -->
+    <div class="chart-wrap">
+      <div class="chart-title">Alle gesehenen Callsigns &nbsp;(<span id="callsignCount">0</span>)</div>
+      <div class="callsign-cloud" id="callsignCloud"></div>
+    </div>
+
+    <!-- ══ SNAPSHOT-BASIERTE DATEN ════════════════════════════ -->
+    <div class="section-divider" style="margin-top:36px;">
+      <span class="section-label">Snapshot-basierte Auswertung</span>
+      <div class="line"></div>
+    </div>
+
+    <!-- ── Snapshot Stat ── -->
+    <div class="stats-row" style="margin-bottom:24px;">
+      <div class="stat-card" style="max-width:220px;">
+        <div class="stat-label">Ø Flugzeuge pro Snapshot</div>
+        <div class="stat-value" id="hStatAvg">–</div>
+        <div class="stat-sub">nur Snapshots mit &gt; 0</div>
+      </div>
+      <div class="stat-card" style="max-width:220px;">
+        <div class="stat-label">Letzter Snapshot</div>
+        <div class="stat-value" id="hStatLastSnap" style="font-size:0.9rem; padding-top:6px;">–</div>
+        <div class="stat-sub">UTC</div>
+      </div>
+    </div>
+
     <!-- ── Zeitverlauf ── -->
     <div class="chart-wrap">
       <div class="chart-title" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
         <span>Zeitverlauf &nbsp;·&nbsp; Flugzeuge pro Snapshot</span>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <div style="display:flex; gap:4px;">
-            <button class="filter-btn active" id="filter24h" onclick="setFilter('24h')">24h</button>
-            <button class="filter-btn" id="filter7d" onclick="setFilter('7d')">7 Tage</button>
-          </div>
-          <span id="histLastUpdate" style="font-size:0.58rem; color:var(--muted); letter-spacing:0.04em;"></span>
+        <div style="display:flex; gap:4px;">
+          <button class="filter-btn active" id="filter24h" onclick="setFilter('24h')">24h</button>
+          <button class="filter-btn" id="filter7d" onclick="setFilter('7d')">7 Tage</button>
         </div>
       </div>
       <canvas id="timelineCanvas" width="860" height="120"></canvas>
@@ -176,18 +202,6 @@
       <canvas id="hourCanvas" width="860" height="140"></canvas>
     </div>
     <div class="hour-tooltip" id="hourTooltip"></div>
-
-    <!-- ── Tages-Balken ── -->
-    <div class="chart-wrap">
-      <div class="chart-title">Tagesverlauf &nbsp;·&nbsp; Max. Flugzeuge pro Tag</div>
-      <div class="bar-chart" id="dailyChart"></div>
-    </div>
-
-    <!-- ── Callsign Cloud ── -->
-    <div class="chart-wrap">
-      <div class="chart-title">Alle gesehenen Callsigns &nbsp;(<span id="callsignCount">0</span>)</div>
-      <div class="callsign-cloud" id="callsignCloud"></div>
-    </div>
 
   </div>
 
@@ -283,8 +297,9 @@ function renderHistory(rows) {
   document.getElementById('hStatMaxTime').textContent = maxRow.timestamp;
   document.getElementById('hStatDays').textContent = days.size;
   document.getElementById('hStatSnapshots').textContent = rows.length + ' Snapshots total';
-  document.getElementById('histLastUpdate').textContent =
-    'Letzter Snapshot: ' + rows[rows.length - 1].timestamp + ' UTC';
+  const lastTs = rows[rows.length - 1].timestamp;
+  document.getElementById('histLastUpdate').textContent = 'Letzter Snapshot: ' + lastTs + ' UTC';
+  document.getElementById('hStatLastSnap').textContent = lastTs;
 
   renderTimeline(filterRows(rows, activeFilter));
   renderHourGrid(rows, activeHourFilter);
@@ -467,19 +482,23 @@ function renderHourGrid(rows, filter = activeHourFilter) {
   canvas.onmouseleave = () => { tooltip.style.display = 'none'; };
 }
 
-// ─── Tages-Balken ─────────────────────────────────────────────
+// ─── Tages-Balken (unique Flüge pro Tag) ──────────────────────
 function renderDailyChart(rows, days) {
-  const dayMax = {};
-  rows.forEach(r => { dayMax[r.datePart] = Math.max(dayMax[r.datePart] || 0, r.count); });
+  // Unique Callsigns pro Tag zählen
+  const dayFlights = {};
+  rows.forEach(r => {
+    if (!dayFlights[r.datePart]) dayFlights[r.datePart] = new Set();
+    r.callsigns.forEach(c => dayFlights[r.datePart].add(c));
+  });
   const dayList = [...days].sort();
-  const maxVal = Math.max(...dayList.map(d => dayMax[d]), 1);
+  const maxVal = Math.max(...dayList.map(d => dayFlights[d]?.size || 0), 1);
 
   document.getElementById('dailyChart').innerHTML = dayList.map(d => {
-    const val = dayMax[d];
+    const val = dayFlights[d]?.size || 0;
     const pct = Math.round((val / maxVal) * 100);
     return `<div class="bar-row">
       <div class="bar-label">${d.slice(5)}</div>
-      <div class="bar-track"><div class="bar-fill green" style="width:${pct}%">${val > 0 ? 'Max ' + val : ''}</div></div>
+      <div class="bar-track"><div class="bar-fill green" style="width:${pct}%">${val > 0 ? val + ' Flüge' : ''}</div></div>
     </div>`;
   }).join('');
 }
