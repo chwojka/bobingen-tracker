@@ -165,7 +165,7 @@
             <button class="filter-btn active" id="filterHourToday" onclick="setHourFilter('today')">Heute</button>
             <button class="filter-btn" id="filterHourAll" onclick="setHourFilter('all')">Ø Alle Tage</button>
           </div>
-          <span style="font-size:0.58rem; color:var(--muted);">Hover für Details &nbsp;·&nbsp; UTC</span>
+          <span style="font-size:0.58rem; color:var(--muted);">Hover für Details &nbsp;·&nbsp; MESZ</span>
         </div>
       </div>
       <canvas id="hourCanvas" width="860" height="140"></canvas>
@@ -194,7 +194,7 @@
       <div class="stat-card" style="max-width:220px;">
         <div class="stat-label">Letzter Snapshot</div>
         <div class="stat-value" id="hStatLastSnap" style="font-size:0.9rem; padding-top:6px;">–</div>
-        <div class="stat-sub">UTC</div>
+        <div class="stat-sub">MESZ</div>
       </div>
     </div>
 
@@ -290,15 +290,30 @@ function setHourFilter(filter) {
   renderHourGrid(allRows, filter);
 }
 
+// UTC-Timestamp-String → lokale Zeit Europe/Berlin (MEZ/MESZ)
+function utcToLocal(utcStr) {
+  const d = new Date(utcStr.replace(' ', 'T') + 'Z');
+  const fmt = new Intl.DateTimeFormat('de-DE', {
+    timeZone: 'Europe/Berlin',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  });
+  const p = Object.fromEntries(fmt.formatToParts(d).map(x => [x.type, x.value]));
+  return {
+    datePart: `${p.year}-${p.month}-${p.day}`,
+    hour: parseInt(p.hour),
+    display: `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`
+  };
+}
+
 function parseCSV(text) {
   return text.trim().split('\n').slice(1).map(line => {
     const parts = line.split(',');
     const timestamp = parts[0];
     const count = parseInt(parts[1]) || 0;
     const callsigns = parts[2] ? parts[2].split('|').map(s => s.trim()).filter(Boolean) : [];
-    const [datePart, timePart] = timestamp.split(' ');
-    const hour = timePart ? parseInt(timePart.split(':')[0]) : 0;
-    return { timestamp, datePart, hour, count, callsigns };
+    const local = utcToLocal(timestamp);
+    return { timestamp, datePart: local.datePart, hour: local.hour, localDisplay: local.display, count, callsigns };
   }).filter(r => r.datePart);
 }
 
@@ -331,11 +346,10 @@ function renderHistory(rows) {
   document.getElementById('hStatUnique').textContent = uniqueFlights.size;
   document.getElementById('hStatAvg').textContent = avg;
   document.getElementById('hStatMax').textContent = maxRow.count;
-  document.getElementById('hStatMaxTime').textContent = maxRow.timestamp;
+  document.getElementById('hStatMaxTime').textContent = maxRow.localDisplay;
   document.getElementById('hStatDays').textContent = days.size;
   document.getElementById('hStatSnapshots').textContent = rows.length + ' Snapshots total';
-  const lastTs = rows[rows.length - 1].timestamp;
-  document.getElementById('hStatLastSnap').textContent = lastTs;
+  document.getElementById('hStatLastSnap').textContent = rows[rows.length - 1].localDisplay;
 
   renderTimeline(filterRows(rows, activeFilter));
   renderHourGrid(rows, activeHourFilter);
@@ -501,13 +515,12 @@ function renderHourGrid(rows, filter = activeHourFilter) {
     const mx = (e.clientX - rect.left);
     const h = Math.floor((mx - pad.left) / barW);
     if (h >= 0 && h < 24) {
-      const localH = (h + 2) % 24; // UTC+2 (MESZ)
       tooltip.style.display = 'block';
       tooltip.style.left = (e.clientX + 12) + 'px';
       tooltip.style.top = (e.clientY - 10) + 'px';
       const valLabel = filter === 'today' ? avgs[h].toFixed(1) + ' Flugzeuge' : 'Ø ' + avgs[h].toFixed(2) + ' Flugzeuge';
       tooltip.innerHTML =
-        `<b>${String(h).padStart(2,'0')}:00 UTC</b> (${String(localH).padStart(2,'0')}:00 MESZ)<br>` +
+        `<b>${String(h).padStart(2,'0')}:00 MESZ</b><br>` +
         valLabel +
         (h === peakHour && avgs[h] > 0 ? ' &nbsp;<span style="color:var(--accent2)">▲ Peak</span>' : '') +
         `<br><span style="color:var(--muted)">${counts[h]} Messung${counts[h] !== 1 ? 'en' : ''}</span>`;
