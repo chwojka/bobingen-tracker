@@ -96,7 +96,14 @@
   .fade-in { animation: fadeIn 0.3s ease forwards; }
 
   footer { text-align: center; font-size: 0.6rem; color: var(--muted); letter-spacing: 0.08em; padding: 16px 0; border-top: 1px solid var(--border); margin-top: 8px; }
+
+  /* ── Beobachtungsbereich Karte ── */
+  .map-wrap { background: var(--mid); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 24px; }
+  #observationMap { width: 100%; height: 320px; border-radius: 4px; }
+  .leaflet-popup-content-wrapper { background: #0d1a35; color: #e8f4f8; border: 1px solid rgba(0,212,255,0.3); border-radius: 4px; font-family: 'Space Mono', monospace; font-size: 0.7rem; }
+  .leaflet-popup-tip { background: #0d1a35; }
 </style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 </head>
 <body>
 <div class="container">
@@ -205,10 +212,40 @@
 
   </div>
 
+  <!-- ── Beobachtungsbereich ── -->
+  <div class="map-wrap">
+    <div class="chart-title" style="margin-bottom:12px">📍 Beobachtungsbereich &nbsp;·&nbsp; 2 km Radius um 48°16'34.75" N, 10°49'58.89" O</div>
+    <div id="observationMap"></div>
+  </div>
+
   <footer>
-    Datenquelle: OpenSky Network API via GitHub Actions (alle 10 Min) &nbsp;·&nbsp; Koordinaten Bobingen: 48.2632°N, 10.8302°E
+    Datenquelle: OpenSky Network API · VPS-Cron alle 5 Min &nbsp;·&nbsp; Beobachtungsradius: 2 km um 48.27632°N, 10.83303°E
   </footer>
 </div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const obsCenter = [48.27632, 10.83303];
+  const obsMap = L.map('observationMap', { zoomControl: true, attributionControl: true })
+    .setView(obsCenter, 14);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    className: 'map-tiles'
+  }).addTo(obsMap);
+
+  // 2 km Kreis
+  L.circle(obsCenter, {
+    color: '#00d4ff', weight: 2,
+    fillColor: '#00d4ff', fillOpacity: 0.08,
+    radius: 2000
+  }).addTo(obsMap)
+    .bindPopup('<b>Beobachtungsbereich</b><br>Radius: 2 km<br>Zentrum: 48°16\'34.75" N<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;10°49\'58.89" O');
+
+  // Mittelpunkt
+  L.circleMarker(obsCenter, {
+    color: '#00d4ff', fillColor: '#00d4ff', fillOpacity: 1, radius: 5, weight: 2
+  }).addTo(obsMap).bindPopup('<b>Zentrum Bobingen</b>').openPopup();
+</script>
 
 <script>
 const CSV_URL = 'https://raw.githubusercontent.com/chwojka/bobingen-tracker/main/data/flights.csv';
