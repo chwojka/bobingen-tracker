@@ -214,32 +214,32 @@
 
   <!-- ── Beobachtungsbereich ── -->
   <div class="map-wrap">
-    <div class="chart-title" style="margin-bottom:12px">📍 Beobachtungsbereich &nbsp;·&nbsp; 2 km Radius um 48°16'34.75" N, 10°49'58.89" O</div>
+    <div class="chart-title" style="margin-bottom:12px">📍 Beobachtungsbereich &nbsp;·&nbsp; 5 km Radius um 48°16'34.75" N, 10°49'58.89" O</div>
     <div id="observationMap"></div>
   </div>
 
   <footer>
-    Datenquelle: OpenSky Network API · VPS-Cron alle 5 Min &nbsp;·&nbsp; Beobachtungsradius: 2 km um 48.27632°N, 10.83303°E
+    Datenquelle: OpenSky Network API · VPS-Cron alle 2 Min &nbsp;·&nbsp; Beobachtungsradius: 5 km um 48.27632°N, 10.83303°E
   </footer>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   const obsCenter = [48.27632, 10.83303];
   const obsMap = L.map('observationMap', { zoomControl: true, attributionControl: true })
-    .setView(obsCenter, 14);
+    .setView(obsCenter, 13);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors',
     className: 'map-tiles'
   }).addTo(obsMap);
 
-  // 2 km Kreis
+  // 5 km Kreis
   L.circle(obsCenter, {
     color: '#00d4ff', weight: 2,
     fillColor: '#00d4ff', fillOpacity: 0.08,
-    radius: 2000
+    radius: 5000
   }).addTo(obsMap)
-    .bindPopup('<b>Beobachtungsbereich</b><br>Radius: 2 km<br>Zentrum: 48°16\'34.75" N<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;10°49\'58.89" O');
+    .bindPopup('<b>Beobachtungsbereich</b><br>Radius: 5 km<br>Zentrum: 48°16\'34.75" N<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;10°49\'58.89" O');
 
   // Mittelpunkt
   L.circleMarker(obsCenter, {
